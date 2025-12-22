@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Homework Helper</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    :root{
+      --bg-primary:#f4f7fc; --bg-secondary:#fff;
+      --text-primary:#111; --text-secondary:#666;
+      --accent-color:#6366f1; --accent-hover:#4f46e5;
+      --success-color:#10b981;
+      --border-color:#e5e7eb;
+      --input-bg:#f3f4f6;
+      --shadow: 0 6px 22px rgba(0,0,0,0.06);
+    }
+    [data-theme="dark"]{
+      --bg-primary:#121212; --bg-secondary:#202020;
+      --text-primary:#fff; --text-secondary:#cfcfcf;
+      --accent-color:#818cf8; --accent-hover:#6366f1;
+      --success-color:#34d399;
+      --border-color:#303030;
+      --input-bg:#2f2f2f;
+      --shadow: 0 6px 22px rgba(0,0,0,0.45);
+    }
+    body{
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: var(--bg-primary); color:var(--text-primary);
+      min-height:100vh; display:flex; justify-content:center; align-items:flex-start; padding:20px;
+    }
+    .app-container{
+      width:100%; max-width:720px; background:var(--bg-secondary); border-radius:14px; box-shadow:var(--shadow);
+      overflow:hidden; display:flex; flex-direction:column; min-height:80vh;
+    }
+    .header{ padding:20px; background:linear-gradient(135deg,var(--accent-color),var(--accent-hover)); color:#fff; position:relative; }
+    .header h1{ font-size:1.25rem; text-align:center; }
+    .theme-toggle{ position:absolute; right:16px; top:16px; border:none; background:rgba(255,255,255,0.18); color:white; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .chat-area{ padding:20px; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+    .empty-state{ text-align:center; color:var(--text-secondary); padding:40px 10px; }
+    .message{ display:flex; gap:12px; align-items:flex-start; }
+    .message.user{ flex-direction:row-reverse; text-align:right; }
+    .avatar{ width:36px; height:36px; border-radius:50%; background:var(--input-bg); display:flex; align-items:center; justify-content:center; color:var(--accent-color); }
+    .message-content{ max-width:78%; padding:12px 16px; border-radius:16px; background:var(--input-bg); color:var(--text-primary); }
+    .message.user .message-content{ background:var(--accent-color); color:white; border-bottom-right-radius:6px; }
+    .loading{ display:flex; align-items:center; gap:8px; padding:12px 18px; border-radius:20px; background:var(--input-bg); }
+    /* INPUT AREA */
+    .input-area{ padding:16px; border-top:1px solid var(--border-color); background:var(--bg-secondary); display:flex; flex-direction:column; gap:10px; }
+    .subject-chips{ display:flex; gap:8px; overflow:auto; padding-bottom:6px; }
+    .chip{ padding:8px 14px; border-radius:24px; background:var(--input-bg); border:none; cursor:pointer; white-space:nowrap; color:var(--text-primary); }
+    .chip.active{ background:var(--accent-color); color:#fff; }
+    .input-wrapper{ display:flex; flex-direction:column; gap:8px; }
+    .text-row{ display:flex; gap:12px; align-items:center; }
+    .text-input{ flex:1; background:var(--input-bg); border-radius:24px; padding:10px 14px; min-height:42px; max-height:160px; overflow:auto; resize:none; border:1px solid transparent; outline:none; font-size:15px; color:var(--text-primary); }
+    .text-input:focus{ box-shadow:0 4px 18px rgba(99,102,241,0.09); border-color:rgba(99,102,241,0.12); }
+    .actions-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .left-actions{ display:flex; align-items:center; gap:8px; }
+    .attachment-wrap{ display:flex; gap:6px; align-items:center; position:relative; }
+    .attachment-btn{ width:44px; height:44px; border-radius:10px; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; background:var(--input-bg); font-size:1.05rem; }
+    .attachment-btn:hover{ background:var(--border-color); }
+    .ai-selector-btn{ width:36px; height:36px; border-radius:8px; border:none; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; color:var(--text-secondary); transition:transform .15s ease;}
+    .ai-selector-btn:hover{ transform:translateY(-2px); color:var(--text-primary); }
+    .ai-popup{ position:absolute; bottom:56px; left:0; padding:10px; background:var(--bg-secondary); border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.12); border:1px solid var(--border-color); display:none; min-width:200px; z-index:1000; transform-origin: bottom center; animation: popupRise .18s ease; }
+    .ai-popup.show{ display:block; }
+    @keyframes popupRise{ from { transform: translateY(8px) scale(.98); opacity:0 } to { transform: translateY(0) scale(1); opacity:1 } }
+    .ai-option{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; color:var(--text-primary); }
+    .ai-option:hover{ background:var(--input-bg); }
+    .ai-option.selected{ background:var(--accent-color); color:#fff; }
+    .right-actions{ display:flex; align-items:center; gap:8px; }
+    .web-search-btn{ width:44px; height:44px; border-radius:10px; border:none; background:var(--input-bg); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.05rem; transition:transform .12s ease, background .12s ease; color:var(--text-secondary); }
+    .web-search-btn.active{ background:var(--success-color); color:#fff; transform:scale(1.08); box-shadow:0 6px 16px rgba(16,185,129,0.15); }
+    .send-btn{ width:48px; height:48px; border-radius:12px; border:none; background:var(--accent-color); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.15rem; }
+    .send-btn:disabled{ background:var(--border-color); cursor:not-allowed; }
+    .file-preview-container{ display:none; align-items:center; gap:8px; padding:8px; border-radius:10px; background:var(--input-bg); }
+    .file-preview-container.show{ display:flex; }
+    @media (max-width:600px){ .attachment-btn{ width:40px; height:40px; } .send-btn{ width:44px; height:44px; } }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="header">
+      <h1><i class="fas fa-graduation-cap"></i> AI Homework Helper</h1>
+      <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
+    </div>
+    <div class="chat-area" id="chatArea">
+      <div class="empty-state">
+        <h2>👋 Welcome! How can I assist you today?</h2>
+        <p>Ask any homework question, choose a subject, or upload an image for analysis.</p>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="subject-chips">
+        <button class="chip active" data-subject="General">📚 General</button>
+        <button class="chip" data-subject="Math">🔢 Math</button>
+        <button class="chip" data-subject="Physics">⚛️ Physics</button>
+        <button class="chip" data-subject="Chemistry">🧪 Chemistry</button>
+        <button class="chip" data-subject="Biology">🧬 Biology</button>
+      </div>
+      <div class="input-wrapper">
+        <div class="file-preview-container" id="filePreviewContainer">
+          <div id="filePreview"></div>
+        </div>
+        <div class="text-row">
+          <textarea id="questionInput" class="text-input" placeholder="Type your homework question..." rows="1" oninput="autoResize(this)"></textarea>
+        </div>
+        <div class="actions-row">
+          <div class="left-actions">
+            <div class="attachment-wrap">
+              <button class="attachment-btn" id="attachmentBtn" title="Attach (images or documents)"><i class="fas fa-paperclip"></i></button>
+              <button class="ai-selector-btn" id="aiSelectorBtn" title="Choose AI">
+                <i class="fas fa-robot"></i>
+                <i class="fas fa-caret-up" style="margin-left:6px; font-size:.9rem;"></i>
+              </button>
+              <div class="ai-popup" id="aiPopup" aria-hidden="true">
+                <div class="ai-option selected" data-ai="mistral" onclick="selectAI('mistral')">
+                  <i class="fas fa-atom"></i><div style="font-weight:600;">Mistral <small style="margin-left:8px;color:var(--text-secondary);font-weight:400;">(default)</small></div>
+                </div>
+                <div class="ai-option" data-ai="groq" onclick="selectAI('groq')">
+                  <i class="fas fa-bolt"></i><div style="font-weight:600;">GROQ</div>
+                </div>
+                <div class="ai-option" data-ai="deepseek" onclick="selectAI('deepseek')">
+                  <i class="fas fa-compass"></i><div style="font-weight:600;">DeepSeek</div>
+                </div>
+                <div class="ai-option" data-ai="gemini" onclick="selectAI('gemini')">
+                  <i class="fas fa-star"></i><div style="font-weight:600;">Gemini</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="right-actions">
+            <button class="web-search-btn" id="webSearchBtn" title="Web Search (toggle)"><i class="fas fa-search"></i></button>
+            <button class="send-btn" id="sendBtn" title="Send"><i class="fas fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)">
+      <input type="file" id="docInput" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" onchange="handleDocSelect(event)">
+    </div>
+  </div>
+
+  <script>
+    const GOOGLE_API_KEY = 'AIzaSyD58xtlD3nuCmb0OpqNvCBffYAu0MTpIqQ';
+    const GOOGLE_SEARCH_ENGINE_ID = '371adfeb1dd584501';
+
+    let selectedSubject = 'General';
+    let selectedFile = null;
+    let selectedFileType = null;
+    let selectedFileName = null;
+    let webSearchEnabled = false;
+    let selectedAI = 'mistral';
+    let chatHistory = [];
+
+    const themeToggle = document.getElementById('themeToggle');
+    const questionInput = document.getElementById('questionInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const webSearchBtn = document.getElementById('webSearchBtn');
+    const attachmentBtn = document.getElementById('attachmentBtn');
+    const imageInput = document.getElementById('imageInput');
+    const docInput = document.getElementById('docInput');
+    const filePreviewContainer = document.getElementById('filePreviewContainer');
+    const filePreview = document.getElementById('filePreview');
+    const aiSelectorBtn = document.getElementById('aiSelectorBtn');
+    const aiPopup = document.getElementById('aiPopup');
+    const chatArea = document.getElementById('chatArea');
+
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    function updateThemeIcon(){
+      const cur = document.documentElement.getAttribute('data-theme');
+      themeToggle.innerHTML = cur === 'light' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+    }
+    updateThemeIcon();
+    themeToggle.onclick = () => {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      updateThemeIcon();
+    };
+
+    document.querySelectorAll('.chip').forEach(c => {
+      c.addEventListener('click', function(){
+        document.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+        this.classList.add('active');
+        selectedSubject = this.dataset.subject;
+      });
+    });
+
+    attachmentBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('imageInput').click();
+    });
+    imageInput.addEventListener('click', (e) => e.stopPropagation());
+    docInput.addEventListener('click', (e) => e.stopPropagation());
+
+    function handleImageSelect(event){
+      const file = event.target.files[0];
+      if (file) {
+        selectedFile = file; selectedFileType = 'image'; selectedFileName = file.name;
+        showFilePreview(file.name, 'image');
+      }
+    }
+    function handleDocSelect(event){
+      const file = event.target.files[0];
+      if (file) {
+        selectedFile = file; selectedFileType = 'document'; selectedFileName = file.name;
+        showFilePreview(file.name, 'document');
+      }
+    }
+    function showFilePreview(name, type){
+      filePreview.innerHTML = `
+        <i class="fas ${type === 'image' ? 'fa-image' : 'fa-file'}" style="color:var(--accent-color);"></i>
+        <div style="font-size:0.92rem; color:var(--text-primary); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${shortenFileName(name)}</div>
+        <button style="background:none;border:none;color:var(--text-secondary);cursor:pointer;margin-left:6px" onclick="removeFile()"><i class="fas fa-times"></i></button>
+      `;
+      filePreviewContainer.classList.add('show');
+    }
+    function shortenFileName(fileName){
+      if (fileName.length <= 18) return fileName;
+      const ext = fileName.split('.').pop();
+      const base = fileName.slice(0, fileName.length - ext.length - 1);
+      return base.slice(0, 12) + '...' + ext;
+    }
+    function removeFile(){
+      selectedFile = null; selectedFileType = null; selectedFileName = null;
+      filePreviewContainer.classList.remove('show');
+      imageInput.value = ''; docInput.value = '';
+    }
+
+    aiSelectorBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAIPopup();
+    });
+    document.addEventListener('click', () => { aiPopup.classList.remove('show'); aiPopup.setAttribute('aria-hidden','true'); });
+    function toggleAIPopup(){
+      const isShown = aiPopup.classList.contains('show');
+      if (!isShown){
+        aiPopup.classList.add('show');
+        aiPopup.setAttribute('aria-hidden','false');
+      } else {
+        aiPopup.classList.remove('show');
+        aiPopup.setAttribute('aria-hidden','true');
+      }
+    }
+    function selectAI(name){
+      selectedAI = name;
+      document.querySelectorAll('.ai-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.ai === name);
+      });
+      aiPopup.style.transition = 'transform .18s ease, opacity .12s ease';
+      aiPopup.style.transform = 'translateY(8px) scale(.98)';
+      aiPopup.style.opacity = '0';
+      setTimeout(() => {
+        aiPopup.classList.remove('show');
+        aiPopup.setAttribute('aria-hidden','true');
+        aiPopup.style.transform = '';
+        aiPopup.style.opacity = '';
+      }, 160);
+    }
+
+    webSearchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      webSearchEnabled = !webSearchEnabled;
+      webSearchBtn.classList.toggle('active', webSearchEnabled);
+      webSearchBtn.title = webSearchEnabled ? 'Web Search: On' : 'Web Search: Off';
+    });
+
+    function autoResize(el){
+      el.style.height = 'auto';
+      el.style.height = (el.scrollHeight) + 'px';
+    }
+    autoResize(questionInput);
+
+    function addMessage(content, isUser, fileInfo = null, sources = null){
+      const empty = chatArea.querySelector('.empty-state');
+      if (empty) empty.remove();
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message ' + (isUser ? 'user' : 'bot');
+      const avatar = document.createElement('div'); avatar.className = 'avatar';
+      avatar.innerHTML = isUser ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+      messageDiv.appendChild(avatar);
+      const contentDiv = document.createElement('div'); contentDiv.className = 'message-content';
+      if (fileInfo && isUser) {
+        const fileDiv = document.createElement('div');
+        fileDiv.style.marginBottom = '8px';
+        fileDiv.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><i class="fas ${fileInfo.type === 'image' ? 'fa-image' : 'fa-file'}" style="color:var(--accent-color)"></i><div style="font-size:.95rem">${fileInfo.name}</div></div>`;
+        contentDiv.appendChild(fileDiv);
+      }
+      if (sources && sources.length > 0 && !isUser) {
+        const searchIndicator = document.createElement('div');
+        searchIndicator.style.fontSize = '.85rem';
+        searchIndicator.style.marginBottom = '8px';
+        searchIndicator.innerHTML = '<i class="fas fa-search"></i> Enhanced with Web Search';
+        contentDiv.appendChild(searchIndicator);
+      }
+      const textDiv = document.createElement('div');
+      textDiv.innerHTML = formatAnswer(content || '');
+      contentDiv.appendChild(textDiv);
+      messageDiv.appendChild(contentDiv);
+      chatArea.appendChild(messageDiv);
+      chatArea.scrollTop = chatArea.scrollHeight;
+      chatHistory.push({ role: isUser ? 'user' : 'assistant', content: content, timestamp: new Date().toISOString(), fileInfo, sources });
+    }
+
+    function showLoading(){
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'message bot loading';
+      loadingDiv.id = 'loadingMessage';
+      loadingDiv.innerHTML = `<div class="avatar"><i class="fas fa-robot"></i></div><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;background:var(--accent-color);border-radius:50%;animation:pulse 1.2s infinite;"></div><div style="width:8px;height:8px;background:var(--accent-color);border-radius:50%;animation:pulse 1.2s .12s infinite;"></div><div style="width:8px;height:8px;background:var(--accent-color);border-radius:50%;animation:pulse 1.2s .24s infinite;"></div></div>`;
+      chatArea.appendChild(loadingDiv);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+    function hideLoading(){
+      const el = document.getElementById('loadingMessage');
+      if (el) el.remove();
+    }
+
+    async function searchGoogle(query){
+      try {
+        const url = "https://www.googleapis.com/customsearch/v1";
+        const params = { key: GOOGLE_API_KEY, cx: GOOGLE_SEARCH_ENGINE_ID, q: query, num: 3 };
+        const res = await fetch(`${url}?${new URLSearchParams(params)}`);
+        const data = await res.json();
+        if (!data.items) return null;
+        return data.items.slice(0,3).map(i => ({ title:i.title, link:i.link, snippet:i.snippet, displayLink:i.displayLink }));
+      } catch (e) {
+        console.warn('Google search failed', e);
+        return null;
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    questionInput.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    async function sendMessage(){
+      const question = questionInput.value.trim();
+      if (!question && !selectedFile) return;
+      sendBtn.disabled = true;
+      addMessage(question || `📎 ${selectedFileType === 'image' ? 'Image' : 'Document'} attached`, true, selectedFile ? { name: selectedFileName, type: selectedFileType } : null);
+      questionInput.value = '';
+      autoResize(questionInput);
+      showLoading();
+      try {
+        let sources = null;
+        if (webSearchEnabled && question) {
+          sources = await searchGoogle(question);
+        }
+        let prompt = `You are an AI assistant helping with homework. Keep answers concise and clear.\nSubject: ${selectedSubject}\n\n`;
+        if (selectedFile) {
+          if (selectedFileType === 'document') {
+            prompt += `Analyze the attached document (${selectedFileName}).\n\n`;
+            if (selectedFile.type === 'text/plain' || selectedFileName.endsWith('.txt')){
+              prompt += await readFileAsText(selectedFile) + '\n\n';
+            } else {
+              prompt += `[Document content not read in browser demo]\n\n`;
+            }
+          } else {
+            prompt += `[Image attached: ${selectedFileName} - please describe and analyze]\n\n`;
+          }
+        }
+        if (question) prompt += `Question: ${question}\n\n`;
+        if (sources && sources.length) {
+          prompt += 'Web results (for reference):\n';
+          sources.forEach((s,i) => { prompt += `${i+1}. ${s.title} - ${s.snippet}\n`; });
+          prompt += '\nPlease synthesize the answer using the above search results where helpful.\n';
+        }
+        prompt += '\nAnswer succinctly. Use markdown for emphasis.`;
+
+        const aiResponse = await callSelectedAI(prompt);
+        hideLoading();
+        addMessage(aiResponse || '❌ No response from model.', false, null, sources);
+      } catch (err) {
+        console.error('Send error:', err);
+        hideLoading();
+        addMessage('❌ An error occurred. Please try again later.', false);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function readFileAsText(file){
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = e => resolve(e.target.result);
+        r.onerror = e => reject(e);
+        r.readAsText(file);
+      });
+    }
+
+    // THIS IS THE ONLY UPDATED PART
+    async function callSelectedAI(prompt){
+      const models = {
+        mistral: "mistral-large-latest",
+        groq: "llama3-70b-8192",
+        deepseek: "deepseek-chat",
+        gemini: "gemini-1.5-flash"
+      };
+
+      const body = {
+        mistral: { model: models.mistral, messages: [{ role: "user", content: prompt }] },
+        groq:    { model: models.groq,    messages: [{ role: "user", content: prompt }] },
+        deepseek:{ model: models.deepseek,messages: [{ role: "user", content: prompt }] },
+        gemini:  { contents: [{ role: "user", parts: [{ text: prompt }] }] }
+      };
+
+      try {
+        const res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: selectedAI,
+            payload: body[selectedAI]
+          })
+        });
+
+        if (!res.ok) throw new Error(`Proxy ${res.status}`);
+
+        const data = await res.json();
+        return data.text.trim();
+      } catch (err) {
+        console.error(err);
+        return `Error: ${err.message}. Check if the site is deployed and API keys are added.`;
+      }
+    }
+
+    function formatAnswer(text){
+      if (!text) return '';
+      text = text.replace(/\n/g, '<br>');
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      text = text.replace(/`(.*?)`/g, '<code>$1</code>');
+      text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+      text = text.replace(/^\s*-\s+(.*)$/gm, '<li>$1</li>');
+      text = text.replace(/<li>(.*?)<\/li>/g, '<ul><li>$1</li></ul>');
+      text = text.replace(/<\/ul><ul>/g, '');
+      return text;
+    }
+
+    (function injectLoadingKeyframes(){
+      const s = document.createElement('style');
+      s.innerHTML = `@keyframes pulse{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`;
+      document.head.appendChild(s);
+    })();
+  </script>
+</body>
+</html>
