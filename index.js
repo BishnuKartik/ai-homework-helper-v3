@@ -1,39 +1,16 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs'; // Built-in, no install needed
+import crypto from 'crypto'; // Built-in
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-
-// Fix 1: Proper MIME types for static files
-app.use(express.static(__dirname, {
-  setHeaders: (res, filepath) => {
-    if (filepath.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    }
-    if (filepath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    }
-    if (filepath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css; charset=utf-8');
-    }
-  }
-}));
-
-// Fix 2: Allow inline scripts via CSP (the key missing piece)
-app.use((req, res, next) => {
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://www.googleapis.com https://api.mistral.ai https://api.groq.com https://api.deepseek.com https://generativelanguage.googleapis.com;"
-  );
-  next();
-});
-
 app.use(express.json({ limit: '10mb' }));
 
-// Your AI proxy (unchanged)
+// AI proxy (unchanged)
 const keys = {
   mistral: process.env.MISTRAL_KEY,
   groq: process.env.GROQ_KEY,
@@ -69,6 +46,32 @@ app.post('/api/ai', async (req, res) => {
     console.error(e);
     res.status(500).json({ error: 'AI error' });
   }
+});
+
+// Serve static files (for any other files like images if you add them)
+app.use(express.static(__dirname));
+
+// Main route: Serve index.html with nonce injected
+app.get('/', (req, res) => {
+  const nonce = crypto.randomBytes(16).toString('base64'); // Generate nonce
+
+  // Set CSP header with nonce
+  res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'nonce-\( {nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com; style-src 'nonce- \){nonce}' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src https://cdnjs.cloudflare.com; connect-src 'self' https://www.googleapis.com https://api.mistral.ai https://api.groq.com https://api.deepseek.com https://generativelanguage.googleapis.com;`);
+
+  // Read index.html and inject nonce into <style> and <script>
+  fs.readFile(path.join(__dirname, 'index.html'), 'utf8', (err, html) => {
+    if (err) {
+      res.status(500).send('Error loading page');
+      return;
+    }
+
+    // Inject nonce into tags
+    html = html.replace(/<script/g, `<script nonce="${nonce}"`);
+    html = html.replace(/<style/g, `<style nonce="${nonce}"`);
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
 });
 
 const port = process.env.PORT || 3000;
