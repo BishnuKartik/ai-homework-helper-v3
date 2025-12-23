@@ -7,19 +7,40 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// IMPORTANT: These two lines fix the entire problem
+// Fix 1: Proper MIME types for static files
 app.use(express.static(__dirname, {
   setHeaders: (res, filepath) => {
-    if (filepath.endsWith('.html')) res.setHeader('Content-Type', 'text/html');
-    if (filepath.endsWith('.js'))   res.setHeader('Content-Type', 'application/javascript');
-    if (filepath.endsWith('.css'))  res.setHeader('Content-Type', 'text/css');
+    if (filepath.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+    if (filepath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    }
+    if (filepath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    }
   }
 }));
+
+// Fix 2: Allow inline scripts via CSP (the key missing piece)
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://www.googleapis.com https://api.mistral.ai https://api.groq.com https://api.deepseek.com https://generativelanguage.googleapis.com;"
+  );
+  next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 
 // Your AI proxy (unchanged)
-const keys = { mistral: process.env.MISTRAL_KEY, groq: process.env.GROQ_KEY, gemini: process.env.GEMINI_KEY, deepseek: process.env.DEEPSEEK_KEY };
+const keys = {
+  mistral: process.env.MISTRAL_KEY,
+  groq: process.env.GROQ_KEY,
+  gemini: process.env.GEMINI_KEY,
+  deepseek: process.env.DEEPSEEK_KEY
+};
+
 const endpoints = {
   mistral: 'https://api.mistral.ai/v1/chat/completions',
   groq: 'https://api.groq.com/openai/v1/chat/completions',
